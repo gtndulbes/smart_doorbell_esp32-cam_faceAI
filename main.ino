@@ -10,12 +10,12 @@
 #include "camera_pins.h"
 
 // ================== WIFI ==================
-const char* ssid = "Redmi Note 13 Pro";
-const char* password = "hermawan4812";
+const char* ssid = "USERNAME_WIFI";
+const char* password = "PASSWORD_WIFI";
 
 // ================== TELEGRAM ==================
-const char* botToken = "8449040606:AAFfmVqsKP1_8ywdgNnxTrJlMKaS7zuCAIk";
-const char* chatID  = "1135349925";
+const char* botToken = "BOT_TOKEN_TELEGRAM";
+const char* chatID  = "CHAT_ID_TELEGRAM";
 
 // ================== PIN ==================
 #define PIR_PIN     14
