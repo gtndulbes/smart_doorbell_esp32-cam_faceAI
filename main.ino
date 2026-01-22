@@ -10,23 +10,22 @@
 #include "camera_pins.h"
 
 // ================== WIFI ==================
-const char* ssid = "USERNAME_WIFI";
-const char* password = "PASSWORD_WIFI";
+const char* ssid = "Redmi Note 13 Pro";
+const char* password = "hermawan4812";
 
 // ================== TELEGRAM ==================
-const char* botToken = "BOT_TOKEN_TELEGRAM";
-const char* chatID  = "CHAT_ID_TELEGRAM";
+const char* botToken = "8458767134:AAGjBBxq7c7A8HSsG4Bg-Ord5Rn6l6DXSbY";
+const char* chatID  = "661330491";
 
 // ================== PIN ==================
 #define PIR_PIN     14
 #define RELAY_PIN   13
 #define BUZZER_PIN  12
-#define FLASH_PIN   4
+#define FLASH_PIN   2
 // ================== FLAG STATUS ==================
 volatile bool pirDetected = false;
 volatile bool faceDetected = false;
 volatile bool faceRecognized = false;
-volatile bool actuatorBusy = false;
 volatile bool is_enrolling = false;
 
 WiFiClientSecure telegramClient;
@@ -82,15 +81,9 @@ void setup() {
   config.xclk_freq_hz = 20000000;
   config.pixel_format = PIXFORMAT_JPEG;
 
-  if (psramFound()) {
     config.frame_size = FRAMESIZE_QVGA;
     config.jpeg_quality = 10;
-    config.fb_count = 2;
-  } else {
-    config.frame_size = FRAMESIZE_QVGA;
-    config.jpeg_quality = 12;
     config.fb_count = 1;
-  }
 
   if (esp_camera_init(&config) != ESP_OK) {
     Serial.println("Camera Init Failed");
@@ -158,6 +151,18 @@ void sendTelegramPhoto(camera_fb_t * fb) {
   client.print(tail);
 }
 
+void sendStreamLink() {
+  if (WiFi.status() != WL_CONNECTED) return;
+
+  String streamURL = "http://" + WiFi.localIP().toString();
+
+  String msg = "📡 *IP CAM LIVE STREAM*\n";
+  msg += "Akses monitoring realtime di:\n";
+  msg += streamURL;
+
+  bot.sendMessage(chatID, msg, "Markdown");
+}
+
 void handleNewMessages(int numNewMessages) {
 
   for (int i = 0; i < numNewMessages; i++) {
@@ -206,7 +211,7 @@ void handleNewMessages(int numNewMessages) {
       String statusMsg = "📊 Status Sistem:\n";
       statusMsg += "PIR        : " + String(pirDetected ? "DETEKSI" : "AMAN") + "\n";
       statusMsg += "Face Detect: " + String(faceDetected ? "YA" : "TIDAK") + "\n";
-      statusMsg += "Relay      : " + String(relayState ? "ON" : "OFF");
+      statusMsg += "Pintu      : " + String(relayState ? "TERKUNCI" : "TERBUKA");
       bot.sendMessage(chatID, statusMsg, "");
     }
     else if (text == "/enroll") {
@@ -215,10 +220,12 @@ void handleNewMessages(int numNewMessages) {
         bot.sendMessage(chat_id, "📸 Enroll dimulai, hadapkan wajah ke kamera", "");
       }
     }
+      // ===== /ipcam =====
+    else if (text == "/ipcam") {
+    sendStreamLink();
+    }
   }
 }
-
-
 // ================== LOOP ==================
 void loop() {
 // ===== TELEGRAM POLLING (HEMAT) =====
@@ -232,14 +239,18 @@ if (millis() - lastTelegramCheck > telegramInterval) {
 // ===== FOTO DARI TELEGRAM =====
 if (sendPhotoCmd) {
   sendPhotoCmd = false;
-    digitalWrite(FLASH_PIN, HIGH);   // 🔦 FLASH ON
-    delay(150);
+  digitalWrite(FLASH_PIN, HIGH);
+  delay(180);   // adaptasi cahaya
+  // 🔥 BUANG FRAME LAMA
   camera_fb_t * fb = esp_camera_fb_get();
+  if (fb) esp_camera_fb_return(fb);
+  // 🔥 AMBIL FRAME BARU
+  fb = esp_camera_fb_get();
   if (fb) {
     sendTelegramPhoto(fb);
     esp_camera_fb_return(fb);
   }
-  digitalWrite(FLASH_PIN, LOW);    // 🔦 FLASH OFF
+  digitalWrite(FLASH_PIN, LOW);
 }
 
   // ===== 1. PIR DETECTION =====
@@ -252,31 +263,22 @@ if (sendPhotoCmd) {
     }
 
   // PIR SUDAH TENANG 10 DETIK
-    if (pirState == LOW && pirDetected && millis() - pirTimer > 10000) {
+    if (pirState == LOW && pirDetected && millis() - pirTimer > 15000) {
       pirDetected = false;
     }
 
 // ===== 2. FACE DETECTED =====
 if (faceDetected) {
-  delay(500);        // delay 5 detik antar foto
+  delay(500);        // jeda antar foto
   faceDetected = false;
 
   digitalWrite(BUZZER_PIN, HIGH);
   delay(3000);
   digitalWrite(BUZZER_PIN, LOW);
-  // FLASH & FOTO
-  digitalWrite(FLASH_PIN, HIGH);
-  delay(120);   // stabilkan cahaya kamera, bisa diganti millis non-blocking
 
-  camera_fb_t * fb = esp_camera_fb_get();
-  if (fb) {
-    sendTelegramPhoto(fb);
-    esp_camera_fb_return(fb);
-  }
-
-  digitalWrite(FLASH_PIN, LOW);
+  sendPhotoCmd = true;
+  sendTelegramMessage("🚨Wajah tidak dikenal");
 }
-
 
 // ===== 3. FACE RECOGNIZED =====
 if (faceRecognized) {
